@@ -29,8 +29,8 @@ jobs:
           changed = 0
           for path in files:
               text = path.read_text()
-              text, n1 = re.subn(r'compileSdk\\s*=\\s*flutter\\.compileSdkVersion', 'compileSdk = 36', text)
-              text, n2 = re.subn(r'compileSdkVersion\\s+flutter\\.compileSdkVersion', 'compileSdkVersion 36', text)
+              text, n1 = re.subn(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', text)
+              text, n2 = re.subn(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', text)
               changed += n1 + n2
               path.write_text(text)
           if changed == 0:
