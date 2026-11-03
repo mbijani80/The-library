@@ -20,7 +20,7 @@ jobs:
           cache: true
       - name: Generate Android platform
         run: flutter create --platforms=android --org com.thelibrary --project-name the_library .
-      - name: Configure Android SDK 36 for app and plugins
+      - name: Configure app Android SDK 36
         shell: bash
         run: |
           set -euo pipefail
@@ -28,80 +28,56 @@ jobs:
           from pathlib import Path
           import re
 
-          app_candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
-          app = next((p for p in app_candidates if p.exists()), None)
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          app = next((p for p in candidates if p.exists()), None)
           if app is None:
               raise SystemExit("Android app Gradle file was not generated")
-          app_text = app.read_text()
-          app_text, count = re.subn(
-              r'compileSdk\s*=\s*flutter\.compileSdkVersion',
-              'compileSdk = 36',
-              app_text
-          )
-          if count == 0 and "compileSdk = 36" not in app_text and "compileSdkVersion 36" not in app_text:
-              app_text, count = re.subn(
-                  r'compileSdkVersion\s+flutter\.compileSdkVersion',
-                  'compileSdkVersion 36',
-                  app_text
-              )
-          if count == 0 and "compileSdk = 36" not in app_text and "compileSdkVersion 36" not in app_text:
+          source = app.read_text()
+          source, count = re.subn(r'compileSdk\\s*=\\s*flutter\\.compileSdkVersion', 'compileSdk = 36', source)
+          if count == 0:
+              source, count = re.subn(r'compileSdkVersion\\s+flutter\\.compileSdkVersion', 'compileSdkVersion 36', source)
+          if count == 0 and not re.search(r'compileSdk(?:Version)?\\s*(?:=\\s*)?36', source):
               raise SystemExit("Could not safely set app compileSdk to 36")
-          app.write_text(app_text)
-
-          root_candidates = [Path("android/build.gradle.kts"), Path("android/build.gradle")]
-          root = next((p for p in root_candidates if p.exists()), None)
-          if root is None:
-              raise SystemExit("Android root Gradle file was not generated")
-
-          if root.suffix == ".kts":
-              root_text = root.read_text()
-              root_text += """
-
-          // Apply the SDK override after all Android plugins have been evaluated.
-          gradle.projectsEvaluated {
-              rootProject.allprojects {
-                  def androidExtension = extensions.findByName("android")
-                  if (androidExtension != null) {
-                      def sdkMethod = androidExtension.class.methods.find {
-                          (it.name == "setCompileSdk" || it.name == "compileSdkVersion") &&
-                          it.parameterTypes.length == 1 &&
-                          (it.parameterTypes[0] == Integer.TYPE || it.parameterTypes[0] == Integer.class)
-                      }
-                      if (sdkMethod == null) {
-                          throw new GradleException("Could not find Android compileSdk setter in " + project.path)
-                      }
-                      sdkMethod.invoke(androidExtension, 36)
-                  }
-              }
-          }
-          """
-          else:
-              root_text = root.read_text()
-              root_text += """
-
-          // Apply the SDK override after all Android plugins have been evaluated.
-          gradle.projectsEvaluated {
-              rootProject.allprojects {
-                  def androidExtension = extensions.findByName("android")
-                  if (androidExtension != null) {
-                      def sdkMethod = androidExtension.class.methods.find {
-                          (it.name == "setCompileSdk" || it.name == "compileSdkVersion") &&
-                          it.parameterTypes.length == 1 &&
-                          (it.parameterTypes[0] == Integer.TYPE || it.parameterTypes[0] == Integer.class)
-                      }
-                      if (sdkMethod == null) {
-                          throw new GradleException("Could not find Android compileSdk setter in " + project.path)
-                      }
-                      sdkMethod.invoke(androidExtension, 36)
-                  }
-              }
-          }
-          """
-          root.write_text(root_text)
-          print(f"Configured app SDK 36 in {app} and plugin SDK override in {root}")
+          app.write_text(source)
+          print(f"Configured app compileSdk 36 in {app}")
           PY
       - name: Resolve packages
         run: flutter pub get
+      - name: Configure Android plugin SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          cache = Path(os.environ.get("PUB_CACHE", str(Path.home() / ".pub-cache")))
+          package_root = cache / "hosted" / "pub.dev"
+          if not package_root.is_dir():
+              raise SystemExit(f"Pub package cache not found: {package_root}")
+
+          changed = []
+          patterns = [
+              (re.compile(r'(compileSdk\\s*=\\s*)\\d+'), r'\\g<1>36'),
+              (re.compile(r'(compileSdkVersion\\s+)\\d+'), r'\\g<1>36'),
+              (re.compile(r'(compileSdk\\s*=\\s*)flutter\\.compileSdkVersion'), r'\\g<1>36'),
+              (re.compile(r'(compileSdkVersion\\s+)flutter\\.compileSdkVersion'), r'\\g<1>36'),
+          ]
+          for gradle_file in package_root.glob("*/android/build.gradle*"):
+              original = gradle_file.read_text()
+              updated = original
+              for pattern, replacement in patterns:
+                  updated = pattern.sub(replacement, updated)
+              if updated != original:
+                  gradle_file.write_text(updated)
+                  changed.append(str(gradle_file))
+
+          print(f"Inspected Android plugin Gradle files under {package_root}")
+          print(f"Updated compileSdk to 36 in {len(changed)} plugin file(s)")
+          for item in changed:
+              print(item)
+          PY
       - name: Analyze Dart source
         run: flutter analyze lib --no-fatal-infos
       - name: Build debug APK
