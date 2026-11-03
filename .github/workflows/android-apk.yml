@@ -57,20 +57,20 @@ jobs:
               root_text = root.read_text()
               root_text += """
 
-          // Force Android library/application plugins to compile against API 36.
-          subprojects {
-              afterEvaluate {
-                  val androidExtension = extensions.findByName("android")
+          // Apply the SDK override after all Android plugins have been evaluated.
+          gradle.projectsEvaluated {
+              rootProject.allprojects {
+                  def androidExtension = extensions.findByName("android")
                   if (androidExtension != null) {
-                      val sdkMethod = androidExtension.javaClass.methods.firstOrNull {
-                          it.name == "compileSdkVersion" &&
-                          it.parameterTypes.size == 1 &&
-                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
-                           it.parameterTypes[0] == Integer::class.java)
+                      def sdkMethod = androidExtension.class.methods.find {
+                          (it.name == "setCompileSdk" || it.name == "compileSdkVersion") &&
+                          it.parameterTypes.length == 1 &&
+                          (it.parameterTypes[0] == Integer.TYPE || it.parameterTypes[0] == Integer.class)
                       }
-                      if (sdkMethod != null) {
-                          sdkMethod.invoke(androidExtension, 36)
+                      if (sdkMethod == null) {
+                          throw new GradleException("Could not find Android compileSdk setter in " + project.path)
                       }
+                      sdkMethod.invoke(androidExtension, 36)
                   }
               }
           }
@@ -79,12 +79,20 @@ jobs:
               root_text = root.read_text()
               root_text += """
 
-          // Force Android library/application plugins to compile against API 36.
-          subprojects {
-              afterEvaluate { project ->
-                  def androidExtension = project.extensions.findByName("android")
+          // Apply the SDK override after all Android plugins have been evaluated.
+          gradle.projectsEvaluated {
+              rootProject.allprojects {
+                  def androidExtension = extensions.findByName("android")
                   if (androidExtension != null) {
-                      androidExtension.compileSdkVersion(36)
+                      def sdkMethod = androidExtension.class.methods.find {
+                          (it.name == "setCompileSdk" || it.name == "compileSdkVersion") &&
+                          it.parameterTypes.length == 1 &&
+                          (it.parameterTypes[0] == Integer.TYPE || it.parameterTypes[0] == Integer.class)
+                      }
+                      if (sdkMethod == null) {
+                          throw new GradleException("Could not find Android compileSdk setter in " + project.path)
+                      }
+                      sdkMethod.invoke(androidExtension, 36)
                   }
               }
           }
