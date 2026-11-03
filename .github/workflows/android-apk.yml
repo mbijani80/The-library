@@ -58,23 +58,31 @@ jobs:
               raise SystemExit(f"Pub package cache not found: {package_root}")
 
           changed = []
-          patterns = [
-              (re.compile(r'(compileSdk\s*=\s*)\d+'), r'\g<1>36'),
-              (re.compile(r'(compileSdkVersion\s+)\d+'), r'\g<1>36'),
-              (re.compile(r'(compileSdk\s*=\s*)flutter\.compileSdkVersion'), r'\g<1>36'),
-              (re.compile(r'(compileSdkVersion\s+)flutter\.compileSdkVersion'), r'\g<1>36'),
-          ]
+          # Match Groovy and Kotlin DSL forms, with or without '='.
+          sdk_pattern = re.compile(
+              r'(\\bcompileSdk(?:Version)?\\s*(?:=\\s*)?)(?:flutter\\.compileSdkVersion|\\d+)'
+          )
           for gradle_file in package_root.glob("*/android/build.gradle*"):
               original = gradle_file.read_text()
-              updated = original
-              for pattern, replacement in patterns:
-                  updated = pattern.sub(replacement, updated)
+              updated = sdk_pattern.sub(r'\\g<1>36', original)
               if updated != original:
                   gradle_file.write_text(updated)
                   changed.append(str(gradle_file))
 
+          # Fail early if any plugin still declares a numeric compileSdk below 36.
+          unresolved = []
+          for gradle_file in package_root.glob("*/android/build.gradle*"):
+              source = gradle_file.read_text()
+              for match in re.finditer(r'\\bcompileSdk(?:Version)?\\s*(?:=\\s*)?(\\d+)', source):
+                  if int(match.group(1)) < 36:
+                      unresolved.append(f"{gradle_file}: compileSdk {match.group(1)}")
+
           print(f"Inspected Android plugin Gradle files under {package_root}")
           print(f"Updated compileSdk to 36 in {len(changed)} plugin file(s)")
+          for item in changed:
+              print(item)
+          if unresolved:
+              raise SystemExit("Android plugins still below compileSdk 36:\\n" + "\\n".join(unresolved))
           for item in changed:
               print(item)
           PY
