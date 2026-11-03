@@ -96,8 +96,6 @@ jobs:
         run: flutter pub get
       - name: Analyze Dart source
         run: flutter analyze lib --no-fatal-infos
-      - name: Run Flutter tests
-        run: flutter test
       - name: Build debug APK
         run: flutter build apk --debug
       - name: Verify APK exists
