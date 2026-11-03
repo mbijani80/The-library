@@ -75,7 +75,7 @@ class _HomePageState extends State<HomePage> {
       if(books.isEmpty) Container(padding:const EdgeInsets.all(26),decoration:BoxDecoration(color:brown,borderRadius:BorderRadius.circular(16)),child:const Column(children:[Icon(Icons.local_library_outlined,size:44,color:gold),SizedBox(height:12),Text('Your shelves are waiting.',style:TextStyle(color:cream,fontSize:17)),SizedBox(height:6),Text('Import a PDF to begin.',style:TextStyle(color:muted))])),
       ...books.map((b)=>Card(child:ListTile(leading:const Icon(Icons.menu_book,color:gold,size:30),title:Text(b['title'],style:const TextStyle(color:cream)),subtitle:Text('Last page: '+b['lastPage'].toString(),style:const TextStyle(color:muted)),trailing:const Icon(Icons.chevron_right,color:gold),onTap:()=>openBook(b)))),
       const SizedBox(height:16),const Text('A page counts after all three questions are answered. There is no minimum score.',style:TextStyle(color:muted,height:1.5))
-    ]))));
+    ])));
 }
 
 class ReaderPage extends StatefulWidget { final Map<String,dynamic> book; const ReaderPage({super.key,required this.book}); @override State<ReaderPage> createState()=>_ReaderPageState(); }
