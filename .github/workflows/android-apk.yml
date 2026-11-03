@@ -20,26 +20,66 @@ jobs:
           cache: true
       - name: Generate Android platform
         run: flutter create --platforms=android --org com.thelibrary --project-name the_library .
-      - name: Force Android SDK 36 for app and plugins
+      - name: Configure Android SDK 36 for app and plugins
+        shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
-          app_files = list(Path("android/app").glob("build.gradle*"))
-          changed = 0
-          for path in app_files:
-              text = path.read_text()
-              text, n1 = re.subn(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', text)
-              text, n2 = re.subn(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', text)
-              changed += n1 + n2
-              path.write_text(text)
-          root = Path("android/build.gradle")
-          if not root.exists():
-              raise SystemExit("Expected android/build.gradle was not generated")
-          root_text = root.read_text()
-          root_text += """
-          
-          // Ensure every Flutter plugin is compiled against Android API 36.
+
+          app_candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          app = next((p for p in app_candidates if p.exists()), None)
+          if app is None:
+              raise SystemExit("Android app Gradle file was not generated")
+          app_text = app.read_text()
+          app_text, count = re.subn(
+              r'compileSdk\s*=\s*flutter\.compileSdkVersion',
+              'compileSdk = 36',
+              app_text
+          )
+          if count == 0 and "compileSdk = 36" not in app_text and "compileSdkVersion 36" not in app_text:
+              app_text, count = re.subn(
+                  r'compileSdkVersion\s+flutter\.compileSdkVersion',
+                  'compileSdkVersion 36',
+                  app_text
+              )
+          if count == 0 and "compileSdk = 36" not in app_text and "compileSdkVersion 36" not in app_text:
+              raise SystemExit("Could not safely set app compileSdk to 36")
+          app.write_text(app_text)
+
+          root_candidates = [Path("android/build.gradle.kts"), Path("android/build.gradle")]
+          root = next((p for p in root_candidates if p.exists()), None)
+          if root is None:
+              raise SystemExit("Android root Gradle file was not generated")
+
+          if root.suffix == ".kts":
+              root_text = root.read_text()
+              root_text += """
+
+          // Force Android library/application plugins to compile against API 36.
+          subprojects {
+              afterEvaluate {
+                  val androidExtension = extensions.findByName("android")
+                  if (androidExtension != null) {
+                      val sdkMethod = androidExtension.javaClass.methods.firstOrNull {
+                          it.name == "compileSdkVersion" &&
+                          it.parameterTypes.size == 1 &&
+                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
+                           it.parameterTypes[0] == Integer::class.java)
+                      }
+                      if (sdkMethod != null) {
+                          sdkMethod.invoke(androidExtension, 36)
+                      }
+                  }
+              }
+          }
+          """
+          else:
+              root_text = root.read_text()
+              root_text += """
+
+          // Force Android library/application plugins to compile against API 36.
           subprojects {
               afterEvaluate { project ->
                   def androidExtension = project.extensions.findByName("android")
@@ -50,14 +90,18 @@ jobs:
           }
           """
           root.write_text(root_text)
-          print(f"Updated app compileSdk in {changed} place(s) and set SDK 36 for all Android subprojects")
+          print(f"Configured app SDK 36 in {app} and plugin SDK override in {root}")
           PY
       - name: Resolve packages
         run: flutter pub get
-      - name: Analyze
+      - name: Analyze Dart source
         run: flutter analyze lib --no-fatal-infos
+      - name: Run Flutter tests
+        run: flutter test
       - name: Build debug APK
         run: flutter build apk --debug
+      - name: Verify APK exists
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
