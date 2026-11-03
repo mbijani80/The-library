@@ -60,11 +60,11 @@ jobs:
           changed = []
           # Match Groovy and Kotlin DSL forms, with or without '='.
           sdk_pattern = re.compile(
-              r'(\\bcompileSdk(?:Version)?\\s*(?:=\\s*)?)(?:flutter\\.compileSdkVersion|\\d+)'
+              r'(\bcompileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)'
           )
           for gradle_file in package_root.glob("*/android/build.gradle*"):
               original = gradle_file.read_text()
-              updated = sdk_pattern.sub(r'\\g<1>36', original)
+              updated = sdk_pattern.sub(r'\g<1>36', original)
               if updated != original:
                   gradle_file.write_text(updated)
                   changed.append(str(gradle_file))
@@ -73,16 +73,14 @@ jobs:
           unresolved = []
           for gradle_file in package_root.glob("*/android/build.gradle*"):
               source = gradle_file.read_text()
-              for match in re.finditer(r'\\bcompileSdk(?:Version)?\\s*(?:=\\s*)?(\\d+)', source):
+              for match in re.finditer(r'\bcompileSdk(?:Version)?\s*(?:=\s*)?(\d+)', source):
                   if int(match.group(1)) < 36:
                       unresolved.append(f"{gradle_file}: compileSdk {match.group(1)}")
 
           print(f"Inspected Android plugin Gradle files under {package_root}")
           print(f"Updated compileSdk to 36 in {len(changed)} plugin file(s)")
-          for item in changed:
-              print(item)
           if unresolved:
-              raise SystemExit("Android plugins still below compileSdk 36:\\n" + "\\n".join(unresolved))
+              raise SystemExit("Android plugins still below compileSdk 36:\n" + "\n".join(unresolved))
           for item in changed:
               print(item)
           PY
