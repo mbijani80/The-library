@@ -20,6 +20,23 @@ jobs:
           cache: true
       - name: Generate Android platform
         run: flutter create --platforms=android --org com.thelibrary --project-name the_library .
+      - name: Set Android compile SDK to 36
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          files = list(Path("android/app").glob("build.gradle*"))
+          changed = 0
+          for path in files:
+              text = path.read_text()
+              text, n1 = re.subn(r'compileSdk\\s*=\\s*flutter\\.compileSdkVersion', 'compileSdk = 36', text)
+              text, n2 = re.subn(r'compileSdkVersion\\s+flutter\\.compileSdkVersion', 'compileSdkVersion 36', text)
+              changed += n1 + n2
+              path.write_text(text)
+          if changed == 0:
+              raise SystemExit("Could not find Flutter compileSdk setting in android/app/build.gradle")
+          print(f"Updated compileSdk in {changed} place(s)")
+          PY
       - name: Resolve packages
         run: flutter pub get
       - name: Analyze
