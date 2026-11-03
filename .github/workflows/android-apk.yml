@@ -33,10 +33,10 @@ jobs:
           if app is None:
               raise SystemExit("Android app Gradle file was not generated")
           source = app.read_text()
-          source, count = re.subn(r'compileSdk\\s*=\\s*flutter\\.compileSdkVersion', 'compileSdk = 36', source)
+          source, count = re.subn(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', source)
           if count == 0:
-              source, count = re.subn(r'compileSdkVersion\\s+flutter\\.compileSdkVersion', 'compileSdkVersion 36', source)
-          if count == 0 and not re.search(r'compileSdk(?:Version)?\\s*(?:=\\s*)?36', source):
+              source, count = re.subn(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', source)
+          if count == 0 and not re.search(r'compileSdk(?:Version)?\s*(?:=\s*)?36', source):
               raise SystemExit("Could not safely set app compileSdk to 36")
           app.write_text(source)
           print(f"Configured app compileSdk 36 in {app}")
@@ -59,10 +59,10 @@ jobs:
 
           changed = []
           patterns = [
-              (re.compile(r'(compileSdk\\s*=\\s*)\\d+'), r'\\g<1>36'),
-              (re.compile(r'(compileSdkVersion\\s+)\\d+'), r'\\g<1>36'),
-              (re.compile(r'(compileSdk\\s*=\\s*)flutter\\.compileSdkVersion'), r'\\g<1>36'),
-              (re.compile(r'(compileSdkVersion\\s+)flutter\\.compileSdkVersion'), r'\\g<1>36'),
+              (re.compile(r'(compileSdk\s*=\s*)\d+'), r'\g<1>36'),
+              (re.compile(r'(compileSdkVersion\s+)\d+'), r'\g<1>36'),
+              (re.compile(r'(compileSdk\s*=\s*)flutter\.compileSdkVersion'), r'\g<1>36'),
+              (re.compile(r'(compileSdkVersion\s+)flutter\.compileSdkVersion'), r'\g<1>36'),
           ]
           for gradle_file in package_root.glob("*/android/build.gradle*"):
               original = gradle_file.read_text()
